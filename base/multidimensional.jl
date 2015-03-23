@@ -621,39 +621,6 @@ end
 
 ## getindex
 
-# general scalar indexing with two or more indices
-# (uses linear indexing, which is defined in bitarray.jl)
-# (code is duplicated for safe and unsafe versions for performance reasons)
-
-@generated function unsafe_getindex(B::BitArray, I_0::Int, I::Int...)
-    N = length(I)
-    quote
-        stride = 1
-        index = I_0
-        @nexprs $N d->begin
-            stride *= size(B,d)
-            index += (I[d] - 1) * stride
-        end
-        return unsafe_getindex(B, index)
-    end
-end
-
-@generated function getindex(B::BitArray, I_0::Int, I::Int...)
-    N = length(I)
-    quote
-        stride = 1
-        index = I_0
-        @nexprs $N d->(I_d = I[d])
-        @nexprs $N d->begin
-            l = size(B,d)
-            stride *= l
-            1 <= I_{d-1} <= l || throw(BoundsError())
-            index += (I_d - 1) * stride
-        end
-        return B[index]
-    end
-end
-
 # contiguous multidimensional indexing: if the first dimension is a range,
 # we can get some performance from using copy_chunks!
 
@@ -663,19 +630,12 @@ function unsafe_getindex(B::BitArray, I0::UnitRange{Int})
     return X
 end
 
-function getindex(B::BitArray, I0::UnitRange{Int})
-    checkbounds(B, I0)
-    return unsafe_getindex(B, I0)
-end
-
 function getindex(B::BitArray, ::Colon)
     X = BitArray(0)
     X.chunks = copy(B.chunks)
     X.len = length(B)
     return X
 end
-
-getindex{T<:Real}(B::BitArray, I0::UnitRange{T}) = getindex(B, to_index(I0))
 
 @generated function unsafe_getindex(B::BitArray, I0::Union(Colon,UnitRange{Int}), I::Union(Int,UnitRange{Int},Colon)...)
     N = length(I)
@@ -732,18 +692,6 @@ end
                     ind += 1
                 end)
         return X
-    end
-end
-
-# general version with Real (or logical) indexing which dispatches on the appropriate method
-
-@generated function getindex(B::BitArray, I::Union(Real,AbstractVector,Colon)...)
-    N = length(I)
-    Isplat = Expr[:(I[$d]) for d = 1:N]
-    Jsplat = Expr[:(to_index(I[$d])) for d = 1:N]
-    quote
-        checkbounds(B, $(Isplat...))
-        return unsafe_getindex(B, $(Jsplat...))
     end
 end
 
