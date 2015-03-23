@@ -53,15 +53,6 @@ length{I<:CartesianIndex}(::Type{I})=length(super(I))
 # indexing
 getindex(index::CartesianIndex, i::Integer) = getfield(index, i)::Int
 
-@generated function getindex{N}(A::Array, index::CartesianIndex{N})
-    :(Base.arrayref(A, $(cartindex_exprs((index,), (:index,))...)))
-end
-@generated function getindex{N}(A::Array, i::Integer, index::CartesianIndex{N})
-    :(Base.arrayref(A, $(cartindex_exprs((i, index), (:i, :index))...)))
-end
-@generated function getindex{M,N}(A::Array, index1::CartesianIndex{M}, i::Integer, index2::CartesianIndex{N})
-    :(Base.arrayref(A, $(cartindex_exprs((index1, i, index2), (:index1, :i, :index2))...)))
-end
 @generated function setindex!{T,N}(A::Array{T}, v, index::CartesianIndex{N})
     :(Base.arrayset(A, convert($T,v), $(cartindex_exprs((index,), (:index,))...)))
 end
