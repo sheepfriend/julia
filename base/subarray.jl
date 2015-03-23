@@ -341,7 +341,6 @@ end
 end
 
 getindex(::Colon, ::Colon) = Colon()
-getindex{T}(v::AbstractArray{T,1}, ::Colon) = v
 getindex(::Colon, i) = i
 
 step(::Colon) = 1
