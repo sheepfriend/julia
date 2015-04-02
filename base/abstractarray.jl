@@ -120,6 +120,7 @@ linearindexing{T<:Range}(::Type{T}) = LinearFast()
 _checkbounds(sz::Int, i::Int) = 1 <= i <= sz
 _checkbounds(sz::Int, i::Real) = _checkbounds(sz, to_index(i))
 _checkbounds(sz::Int, I::AbstractVector{Bool}) = length(I) == sz
+_checkbounds(sz::Int, I::AbstractArray{Bool}) = length(I) == sz # setindex! allows this
 _checkbounds(sz::Int, r::Range{Int}) = isempty(r) || (minimum(r) >= 1 && maximum(r) <= sz)
 _checkbounds{T<:Real}(sz::Int, r::Range{T}) = _checkbounds(sz, to_index(r))
 _checkbounds(sz::Int, ::Colon) = true
@@ -482,13 +483,6 @@ function circshift{T,N}(a::AbstractArray{T,N}, shiftamts)
     a[(I::NTuple{N,Vector{Int}})...]
 end
 
-## Indexing: setindex! ##
-
-# 1-d indexing is assumed defined on subtypes
-setindex!(t::AbstractArray, x, i::Real) =
-    error("setindex! not defined for ",typeof(t))
-setindex!(t::AbstractArray, x) = throw(MethodError(setindex!, (t, x)))
-
 ## Approach:
 # We only define one fallback method on getindex for all argument types.
 # That dispatches to an (inlined) internal _getindex function, where the goal is
@@ -606,9 +600,102 @@ end
     end
 end
 
+## Setindex! is defined similarly. We first dispatch to an internal _setindex!
+# function that allows dispatch on array storage
+function setindex!(A::AbstractArray, v, I...)
+    @_inline_expr
+    _setindex!(linearindexing(A), A, v, I...)
+end
+function unsafe_setindex!(A::AbstractArray, v, I...)
+    @_inline_expr
+    _unsafe_setindex!(linearindexing(A), A, v, I...)
+end
+## Internal defitions
+_setindex!(::LinearFast, A::AbstractArray, v) = (@_inline_expr; setindex!(A, v, 1))
+_setindex!(::LinearSlow, A::AbstractArray, v) = (@_inline_expr; _setindex!(A, v, 1))
+_unsafe_setindex!(::LinearFast, A::AbstractArray, v) = (@_inline_expr; unsafe_setindex!(A, v, 1))
+_unsafe_setindex!(::LinearSlow, A::AbstractArray, v) = (@_inline_expr; _unsafe_setindex!(A, v, 1))
+_setindex!(::LinearIndexing, A::AbstractArray, v, I...) = error("indexing $(typeof(A)) with types $(typeof(I)) is not supported")
+_unsafe_setindex!(::LinearIndexing, A::AbstractArray, v, I...) = error("indexing $(typeof(A)) with types $(typeof(I)) is not supported")
 
-## Setindex! is defined similarly:
-unsafe_setindex!(A::AbstractArray, v, I...) = (@_inline_expr; @inbounds return setindex!(A, v, I...))
+## LinearFast Scalar indexing
+_setindex!(::LinearFast, A::AbstractArray, v, I::Int) = error("indexed assignment not defined for ", typeof(A))
+@generated function _setindex!(::LinearFast, A::AbstractArray, v, I::Real...)
+    Isplat = Expr[:(to_index(I[$d])) for d = 1:length(I)]
+    quote
+        $(Expr(:meta, :inline))
+        # We must check bounds for sub2ind; so we can then call unsafe_setindex!
+        checkbounds(A, I...)
+        unsafe_setindex!(A, v, sub2ind(size(A), $(Isplat...)))
+    end
+end
+_unsafe_setindex!(::LinearFast, A::AbstractArray, v, I::Int) = (@_inline_expr; setindex!(A, v, I))
+@generated function _unsafe_setindex!(::LinearFast, A::AbstractArray, v, I::Real...)
+    Isplat = Expr[:(to_index(I[$d])) for d = 1:length(I)]
+    quote
+        $(Expr(:meta, :inline))
+        unsafe_setindex!(A, v, sub2ind(size(A), $(Isplat...)))
+    end
+end
+
+# LinearSlow Scalar indexing
+@generated function _setindex!{T,AN}(::LinearSlow, A::AbstractArray{T,AN}, v, I::Real...)
+    N = length(I)
+    if N == AN
+        :(error("indexed assignment not defined for ", typeof(A)))
+    elseif N > AN
+        # Drop trailing ones
+        Isplat = Expr[:(to_index(I[$d])) for d = 1:AN]
+        Osplat = Expr[:(to_index(I[$d]) == 1) for d = AN+1:N]
+        quote
+            $(Expr(:meta, :inline))
+            (&)($(Osplat...)) || throw(BoundsError(A, I))
+            setindex!(A, v, $(Isplat...))
+        end
+    else
+        # Expand the last index into the appropriate number of indices
+        Isplat = Expr[:(to_index(I[$d])) for d = 1:N-1]
+        i = 0
+        for d=N:AN
+            push!(Isplat, :(s[$(i+=1)]))
+        end
+        sz = Expr(:tuple)
+        sz.args = Expr[:(size(A, $d)) for d=N:AN]
+        quote
+            $(Expr(:meta, :inline))
+            s = ind2sub($sz, to_index(I[$N]))
+            setindex!(A, v, $(Isplat...))
+        end
+    end
+end
+@generated function _unsafe_setindex!{T,AN}(::LinearSlow, A::AbstractArray{T,AN}, v, I::Real...)
+    N = length(I)
+    if N == AN
+        Isplat = Expr[:(to_index(I[$d])) for d = 1:N]
+        :(setindex!(A, v, $(Isplat...)))
+    elseif N > AN
+        # Drop trailing dimensions (unchecked)
+        Isplat = Expr[:(to_index(I[$d])) for d = 1:AN]
+        quote
+            $(Expr(:meta, :inline))
+            unsafe_setindex!(A, v, $(Isplat...))
+        end
+    else
+        # Expand the last index into the appropriate number of indices
+        Isplat = Expr[:(to_index(I[$d])) for d = 1:N-1]
+        for d=N:AN
+            push!(Isplat, :(s[$(d-N+1)]))
+        end
+        sz = Expr(:tuple)
+        sz.args = Expr[:(size(A, $d)) for d=N:AN]
+        quote
+            $(Expr(:meta, :inline))
+            s = ind2sub($sz, to_index(I[$N]))
+            unsafe_setindex!(A, v, $(Isplat...))
+        end
+    end
+end
+
 ## get (getindex with a default value) ##
 
 typealias RangeVecIntList{A<:AbstractVector{Int}} Union(Tuple{Vararg{Union(Range, AbstractVector{Int})}}, AbstractVector{UnitRange{Int}}, AbstractVector{Range{Int}}, AbstractVector{A})

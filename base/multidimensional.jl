@@ -313,44 +313,73 @@ _checksize(A::AbstractArray, dim, ::Colon) = true
 _checksize(A::AbstractArray, dim, ::Real) = size(A, dim) == 1
 
 @inline unsafe_setindex!{T}(v::Array{T}, x::T, ind::Int) = (@inbounds v[ind] = x; v)
-@inline unsafe_setindex!{T}(v::AbstractArray{T}, x::T, ind::Int) = (v[ind] = x; v)
 @inline unsafe_setindex!(v::BitArray, x::Bool, ind::Int) = (Base.unsafe_bitsetindex!(v.chunks, x, ind); v)
-@inline unsafe_setindex!{T}(v::AbstractArray{T}, x::T, ind::Real) = unsafe_setindex!(v, x, to_index(ind))
+@inline unsafe_setindex!(v::BitArray, x, ind::Real) = (Base.unsafe_bitsetindex!(v.chunks, convert(Bool, x), to_index(ind)); v)
 
+## setindex! ##
+# For multi-element setindex!, we check bounds, convert the indices (to_index),
+# and ensure the value to set is either an AbstractArray or a Repeated scalar
+# before redispatching to the _unsafe_batchsetindex!
+_iterable(v::AbstractArray) = v
+_iterable(v) = repeated(v)
+@inline function _setindex!(l::LinearIndexing, A::AbstractArray, x, J::Union(Real,AbstractArray,Colon)...)
+    checkbounds(A, J...)
+    _unsafe_setindex!(l, A, x, J...)
+end
+@inline function _unsafe_setindex!(l::LinearIndexing, A::AbstractArray, x, J::Union(Real,AbstractArray,Colon)...)
+    _unsafe_batchsetindex!(l, A, _iterable(x), to_index(J)...)
+end
 
-@generated function setindex!(A::Array, x, J::Union(Real,AbstractArray,Colon)...)
-    N = length(J)
-    if x<:AbstractArray
-        ex=quote
-            X = x
-            idxlens = @ncall $N index_lengths A I
-            setindex_shape_check(X, idxlens...)
-            Xs = start(X)
-            @nloops $N i d->(1:idxlens[d]) d->(@inbounds offset_{d-1} = offset_d + (unsafe_getindex(I_d, i_d)-1)*stride_d) begin
-                v, Xs = next(X, Xs)
-                @inbounds A[offset_0] = v
-            end
-        end
-    else
-        ex=quote
-            idxlens = @ncall $N index_lengths A I
-            @nloops $N i d->(1:idxlens[d]) d->(@inbounds offset_{d-1} = offset_d + (unsafe_getindex(I_d, i_d)-1)*stride_d) begin
-                @inbounds A[offset_0] = x
-            end
+# 1-d logical indexing: override the above to avoid calling find (in to_index)
+function _unsafe_setindex!(::LinearIndexing, A::AbstractArray, x, I::AbstractArray{Bool})
+    X = _iterable(x)
+    setindex_shape_check(X, index_lengths(A, I)[1])
+    Xs = start(X)
+    i = 0
+    for b in I
+        i+=1
+        if b
+            (v, Xs) = next(X, Xs)
+            unsafe_setindex!(A, v, i)
         end
     end
+    A
+end
+
+# Use iteration over X so we don't need to worry about its storage
+@generated function _unsafe_batchsetindex!(::LinearFast, A::AbstractArray, X, I::Union(Real,AbstractArray,Colon)...)
+    N = length(I)
     quote
-        @nexprs $N d->(J_d = J[d])
-        @ncall $N checkbounds A J
-        @nexprs $N d->(I_d = to_index(J_d))
+        @nexprs $N d->(I_d = I[d])
+        idxlens = @ncall $N index_lengths A I
+        @ncall $N setindex_shape_check X (d->idxlens[d])
+        Xs = start(X)
         stride_1 = 1
         @nexprs $N d->(stride_{d+1} = stride_d*size(A,d))
-        @nexprs $N d->(offset_d = 1)  # really only need offset_$N = 1
-        $ex
+        $(symbol(:offset_, N)) = 1
+        @nloops $N i d->(1:idxlens[d]) d->(offset_{d-1} = offset_d + (unsafe_getindex(I_d, i_d)-1)*stride_d) begin
+            v, Xs = next(X, Xs)
+            unsafe_setindex!(A, v, offset_0)
+        end
+        A
+    end
+end
+@generated function _unsafe_batchsetindex!(::LinearSlow, A::AbstractArray, X, I::Union(Real,AbstractArray,Colon)...)
+    N = length(I)
+    quote
+        @nexprs $N d->(I_d = I[d])
+        idxlens = @ncall $N index_lengths A I
+        @ncall $N setindex_shape_check X (d->idxlens[d])
+        Xs = start(X)
+        @nloops $N i d->(1:idxlens[d]) d->(j_d = unsafe_getindex(I_d, i_d)) begin
+            v, Xs = next(X, Xs)
+            @ncall $N unsafe_setindex! A v j
+        end
         A
     end
 end
 
+##
 
 @generated function findn{T,N}(A::AbstractArray{T,N})
     quote
@@ -366,7 +395,6 @@ end
         @ntuple $N I
     end
 end
-
 
 ### subarray.jl
 

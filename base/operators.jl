@@ -288,16 +288,16 @@ end
 setindex_shape_check(X::AbstractArray) =
     (length(X)==1 || throw_setindex_mismatch(X,()))
 
-setindex_shape_check(X::AbstractArray, i) =
+setindex_shape_check(X::AbstractArray, i::Int) =
     (length(X)==i || throw_setindex_mismatch(X, (i,)))
 
-setindex_shape_check{T}(X::AbstractArray{T,1}, i) =
+setindex_shape_check{T}(X::AbstractArray{T,1}, i::Int) =
     (length(X)==i || throw_setindex_mismatch(X, (i,)))
 
-setindex_shape_check{T}(X::AbstractArray{T,1}, i, j) =
+setindex_shape_check{T}(X::AbstractArray{T,1}, i::Int, j::Int) =
     (length(X)==i*j || throw_setindex_mismatch(X, (i,j)))
 
-function setindex_shape_check{T}(X::AbstractArray{T,2}, i, j)
+function setindex_shape_check{T}(X::AbstractArray{T,2}, i::Int, j::Int)
     if length(X) != i*j
         throw_setindex_mismatch(X, (i,j))
     end
@@ -306,6 +306,7 @@ function setindex_shape_check{T}(X::AbstractArray{T,2}, i, j)
         throw_setindex_mismatch(X, (i,j))
     end
 end
+setindex_shape_check(X, I::Int...) = nothing # Non-arrays broadcast to all idxs
 
 # convert to integer index
 to_index(i::Int) = i
