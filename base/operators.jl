@@ -218,12 +218,13 @@ function promote_shape(a::Dims, b::Dims)
     return a
 end
 
-# The lengths of the given indices, lowering : to the appropriate size
+# Recursively compute the lengths of a list of indices
 index_lengths(A::AbstractArray, I...) = index_lengths_dim(A, 1, I...)
 index_lengths_dim(A, dim)                = ()
 index_lengths_dim(A, dim, ::Colon)       = dim == 1 ? (length(A),) : (trailingsize(A, dim),)
 index_lengths_dim(A, dim, ::Colon, I...) = tuple(size(A, dim), index_lengths_dim(A, dim+1, I...)...)
 index_lengths_dim(A, dim, ::Real, I...)  = tuple(1, index_lengths_dim(A, dim+1, I...)...)
+index_lengths_dim(A, dim, i::AbstractArray{Bool}, I...) = tuple(sum(i), index_lengths_dim(A, dim+1, I...)...)
 index_lengths_dim(A, dim, i, I...)       = tuple(length(i), index_lengths_dim(A, dim+1, I...)...)
 
 # shape of array to create for getindex() with indexes I
@@ -234,6 +235,7 @@ index_shape(A::AbstractArray, I...) = index_shape_dim(A, 1, I...)
 index_shape_dim(A, dim, I::Real...)    = ()
 index_shape_dim(A, dim, ::Colon)       = dim == 1 ? (length(A),) : (trailingsize(A, dim),)
 index_shape_dim(A, dim, ::Colon, I...) = tuple(size(A, dim), index_shape_dim(A, dim+1, I...)...)
+index_shape_dim(A, dim, i::AbstractArray{Bool}, I...) = tuple(sum(i), index_shape_dim(A, dim+1, I...)...)
 index_shape_dim(A, dim, i, I...)       = tuple(length(i), index_shape_dim(A, dim+1, I...)...)
 
 function throw_setindex_mismatch(X, I)
