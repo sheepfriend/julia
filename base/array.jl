@@ -279,8 +279,20 @@ done(a::Array,i) = (i > length(a))
 
 ## Indexing: getindex ##
 
-getindex(A::Array, i::Int) = arrayref(A, i)
-unsafe_getindex(A::Array, i::Int) = @inbounds return arrayref(A, i)
+# While these are redundant with the abstract fallbacks, the compiler is much
+# better at hoisting bounds checks from within arrayref than `checkbounds`
+getindex(A::Array, i1::Int) = arrayref(A, i1)
+getindex(A::Array, i1::Int, i2::Int) = arrayref(A, i1, i2)
+getindex(A::Array, i1::Int, i2::Int, i3::Int) = arrayref(A, i1, i2, i3)
+getindex(A::Array, i1::Int, i2::Int, i3::Int, i4::Int) = arrayref(A, i1, i2, i3, i4)
+getindex(A::Array, i1::Int, i2::Int, i3::Int, i4::Int, i5::Int) = arrayref(A, i1, i2, i3, i4, i5)
+getindex(A::Array, i1::Int, i2::Int, i3::Int, i4::Int, i5::Int, i6::Int, I::Int...) = arrayref(A, i1, i2, i3, i4, i5, i6, I...)
+unsafe_getindex(A::Array, i1::Int) = @inbounds return arrayref(A, i1)
+unsafe_getindex(A::Array, i1::Int, i2::Int) = @inbounds return arrayref(A, i1, i2)
+unsafe_getindex(A::Array, i1::Int, i2::Int, i3::Int) = @inbounds return arrayref(A, i1, i2, i3)
+unsafe_getindex(A::Array, i1::Int, i2::Int, i3::Int, i4::Int) = @inbounds return arrayref(A, i1, i2, i3, i4)
+unsafe_getindex(A::Array, i1::Int, i2::Int, i3::Int, i4::Int, i5::Int) = @inbounds return arrayref(A, i1, i2, i3, i4, i5)
+unsafe_getindex(A::Array, i1::Int, i2::Int, i3::Int, i4::Int, i5::Int, i6::Int, I::Int...) = @inbounds return arrayref(A, i1, i2, i3, i4, i5, i6, I...)
 
 # Fast copy using copy! for UnitRange and Colon
 # This will outperform abstract fallbacks, but disabled for now as a stress test
