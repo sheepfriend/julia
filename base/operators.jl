@@ -218,11 +218,12 @@ function promote_shape(a::Dims, b::Dims)
     return a
 end
 
-# Recursively compute the lengths of a list of indices
+# Recursively compute the lengths of a list of indices, without dropping scalars
 index_lengths(A::AbstractArray, I...) = index_lengths_dim(A, 1, I...)
+index_lengths(A::AbstractArray, I::Colon) = (length(A),)
 index_lengths_dim(A, dim)                = ()
-index_lengths_dim(A, dim, ::Colon)       = dim == 1 ? (length(A),) : (trailingsize(A, dim),)
-index_lengths_dim(A, dim, ::Colon, I...) = tuple(size(A, dim), index_lengths_dim(A, dim+1, I...)...)
+index_lengths_dim(A, dim, ::Colon)       = (trailingsize(A, dim),)
+index_lengths_dim(A, dim, ::Colon, i, I...) = tuple(size(A, dim), index_lengths_dim(A, dim+1, i, I...)...)
 index_lengths_dim(A, dim, ::Real, I...)  = tuple(1, index_lengths_dim(A, dim+1, I...)...)
 index_lengths_dim(A, dim, i::AbstractArray{Bool}, I...) = tuple(sum(i), index_lengths_dim(A, dim+1, I...)...)
 index_lengths_dim(A, dim, i, I...)       = tuple(length(i), index_lengths_dim(A, dim+1, I...)...)
@@ -231,10 +232,11 @@ index_lengths_dim(A, dim, i, I...)       = tuple(length(i), index_lengths_dim(A,
 # drop dimensions indexed with trailing scalars
 index_shape(A::AbstractArray, I::AbstractArray) = size(I) # Linear index reshape
 index_shape(A::AbstractArray, I::AbstractArray{Bool}) = (sum(I),) # Logical index
+index_shape(A::AbstractArray, I::Colon) = (length(A),)
 index_shape(A::AbstractArray, I...) = index_shape_dim(A, 1, I...)
 index_shape_dim(A, dim, I::Real...)    = ()
-index_shape_dim(A, dim, ::Colon)       = dim == 1 ? (length(A),) : (trailingsize(A, dim),)
-index_shape_dim(A, dim, ::Colon, I...) = tuple(size(A, dim), index_shape_dim(A, dim+1, I...)...)
+index_shape_dim(A, dim, ::Colon)       = (trailingsize(A, dim),)
+index_shape_dim(A, dim, ::Colon, i, I...) = tuple(size(A, dim), index_shape_dim(A, dim+1, i, I...)...)
 index_shape_dim(A, dim, i::AbstractArray{Bool}, I...) = tuple(sum(i), index_shape_dim(A, dim+1, I...)...)
 index_shape_dim(A, dim, i, I...)       = tuple(length(i), index_shape_dim(A, dim+1, I...)...)
 
