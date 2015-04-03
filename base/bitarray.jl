@@ -365,8 +365,7 @@ end
     end
 end
 
-setindex!(B::BitArray, x) = setindex!(B, convert(Bool,x), 1)
-
+setindex!(B::BitArray, x, i::Int) = setindex!(B, convert(Bool,x), i)
 function setindex!(B::BitArray, x::Bool, i::Int)
     1 <= i <= length(B) || throw(BoundsError(B, i))
     unsafe_bitsetindex!(B.chunks, x, i)

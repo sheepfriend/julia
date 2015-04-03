@@ -699,42 +699,6 @@ end
 
 ## setindex!
 
-# general scalar indexing with two or more indices
-# (uses linear indexing, which - in the safe version - performs the final
-# bounds check and is defined in bitarray.jl)
-# (code is duplicated for safe and unsafe versions for performance reasons)
-
-@generated function unsafe_setindex!(B::BitArray, x::Bool, I_0::Int, I::Int...)
-    N = length(I)
-    quote
-        stride = 1
-        index = I_0
-        @nexprs $N d->begin
-            stride *= size(B,d)
-            index += (I[d] - 1) * stride
-        end
-        unsafe_setindex!(B, x, index)
-        return B
-    end
-end
-
-@generated function setindex!(B::BitArray, x::Bool, I_0::Int, I::Int...)
-    N = length(I)
-    quote
-        stride = 1
-        index = I_0
-        @nexprs $N d->(I_d = I[d])
-        @nexprs $N d->begin
-            l = size(B,d)
-            stride *= l
-            1 <= I_{d-1} <= l || throw(BoundsError())
-            index += (I_d - 1) * stride
-        end
-        B[index] = x
-        return B
-    end
-end
-
 # contiguous multidimensional indexing: if the first dimension is a range,
 # we can get some performance from using copy_chunks!
 
@@ -813,75 +777,6 @@ end
         return B
     end
 end
-
-
-# general multidimensional non-scalar indexing
-
-@generated function unsafe_setindex!(B::BitArray, X::AbstractArray, I::Union(Int,AbstractArray{Int},Colon)...)
-    N = length(I)
-    quote
-        refind = 1
-        @nexprs $N d->(I_d = I[d])
-        idxlens = @ncall $N index_lengths B I
-        @nloops $N i d->(1:idxlens[d]) d->(J_d = I_d[i_d]) @inbounds begin
-            @ncall $N unsafe_setindex! B convert(Bool,X[refind]) J
-            refind += 1
-        end
-        return B
-    end
-end
-
-@generated function unsafe_setindex!(B::BitArray, x::Bool, I::Union(Int,AbstractArray{Int},Colon)...)
-    N = length(I)
-    quote
-        @nexprs $N d->(I_d = I[d])
-        idxlens = @ncall $N index_lengths B I
-        @nloops $N i d->(1:idxlens[d]) d->(J_d = I_d[i_d]) begin
-            @ncall $N unsafe_setindex! B x J
-        end
-        return B
-    end
-end
-
-# general versions with Real (or logical) indexing which dispatch on the appropriate method
-
-# this one is for disambiguation only
-function setindex!(B::BitArray, x, i::Real)
-    checkbounds(B, i)
-    return unsafe_setindex!(B, convert(Bool,x), to_index(i))
-end
-
-@generated function setindex!(B::BitArray, x, I::Union(Real,AbstractArray,Colon)...)
-    N = length(I)
-    quote
-        checkbounds(B, I...)
-        #return unsafe_setindex!(B, convert(Bool,x), to_index(I...)...) # segfaults! (???)
-        @nexprs $N d->(J_d = to_index(I[d]))
-        return @ncall $N unsafe_setindex! B convert(Bool,x) J
-    end
-end
-
-
-# this one is for disambiguation only
-function setindex!(B::BitArray, X::AbstractArray, i::Real)
-    checkbounds(B, i)
-    j = to_index(i)
-    setindex_shape_check(X, index_lengths(A, j)[1])
-    return unsafe_setindex!(B, X, j)
-end
-
-@generated function setindex!(B::BitArray, X::AbstractArray, I::Union(Real,AbstractArray,Colon)...)
-    N = length(I)
-    quote
-        checkbounds(B, I...)
-        @nexprs $N d->(J_d = to_index(I[d]))
-        idxlens = @ncall $N index_lengths B J
-        setindex_shape_check(X, idxlens...)
-        return @ncall $N unsafe_setindex! B X J
-    end
-end
-
-
 
 ## findn
 
