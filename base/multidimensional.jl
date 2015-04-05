@@ -213,6 +213,28 @@ end  # IteratorsMD
 
 using .IteratorsMD
 
+# Recursively compute the lengths of a list of indices, without dropping scalars
+index_lengths(A::AbstractArray, I::Colon) = (length(A),)
+@inline index_lengths(A::AbstractArray, I...) = index_lengths_dim(A, 1, I...)
+@inline index_lengths_dim(A, dim)                = ()
+@inline index_lengths_dim(A, dim, ::Colon)       = (trailingsize(A, dim),)
+@inline index_lengths_dim(A, dim, ::Colon, i, I...) = tuple(size(A, dim), index_lengths_dim(A, dim+1, i, I...)...)
+@inline index_lengths_dim(A, dim, ::Real, I...)  = tuple(1, index_lengths_dim(A, dim+1, I...)...)
+@inline index_lengths_dim(A, dim, i::AbstractArray{Bool}, I...) = tuple(sum(i), index_lengths_dim(A, dim+1, I...)...)
+@inline index_lengths_dim(A, dim, i, I...)       = tuple(length(i), index_lengths_dim(A, dim+1, I...)...)
+
+# shape of array to create for getindex() with indexes I
+# drop dimensions indexed with trailing scalars
+index_shape(A::AbstractArray, I::AbstractArray) = size(I) # Linear index reshape
+index_shape(A::AbstractArray, I::AbstractArray{Bool}) = (sum(I),) # Logical index
+index_shape(A::AbstractArray, I::Colon) = (length(A),)
+@inline index_shape(A::AbstractArray, I...) = index_shape_dim(A, 1, I...)
+@inline index_shape_dim(A, dim, I::Real...)    = ()
+@inline index_shape_dim(A, dim, ::Colon)       = (trailingsize(A, dim),)
+@inline index_shape_dim(A, dim, ::Colon, i, I...) = tuple(size(A, dim), index_shape_dim(A, dim+1, i, I...)...)
+@inline index_shape_dim(A, dim, i::AbstractArray{Bool}, I...) = tuple(sum(i), index_shape_dim(A, dim+1, I...)...)
+@inline index_shape_dim(A, dim, i, I...)       = tuple(length(i), index_shape_dim(A, dim+1, I...)...)
+
 ### From abstractarray.jl: Internal multidimensional indexing definitions ###
 # These are not defined on directly ongetindex and unsafe_getindex to avoid
 # ambiguities for AbstractArray subtypes. See the note in abstractarray.jl
