@@ -641,31 +641,20 @@ end
 ## getindex
 
 @inline unsafe_getindex(v::BitArray, ind::Int) = Base.unsafe_bitgetindex(v.chunks, ind)
-@inline unsafe_setindex!(v::BitArray, x::Bool, ind::Int) = (Base.unsafe_bitsetindex!(v.chunks, x, ind); v)
+@inline unsafe_setindex!(v::BitArray, x, ind::Int) = (Base.unsafe_bitsetindex!(v.chunks, convert(Bool, x), ind); v)
 
 # contiguous multidimensional indexing: if the first dimension is a range,
 # we can get some performance from using copy_chunks!
-
-function unsafe_getindex(B::BitArray, I0::UnitRange{Int})
-    X = BitArray(length(I0))
-    copy_chunks!(X.chunks, 1, B.chunks, first(I0), length(I0))
+function _unsafe_getindex!(X::BitArray, ::LinearFast, B::BitArray, I0::Union(UnitRange{Int}, Colon))
+    copy_chunks!(X.chunks, 1, B.chunks, first(I0), index_lengths(B, I0)[1])
     return X
 end
 
-function getindex(B::BitArray, ::Colon)
-    X = BitArray(0)
-    X.chunks = copy(B.chunks)
-    X.len = length(B)
-    return X
-end
-
-# Optimization where the inner dimension is contiguous
-@generated function unsafe_getindex(B::BitArray, I0::Union(Colon,UnitRange{Int}), I::Union(Int,UnitRange{Int},Colon)...)
+# Optimization where the inner dimension is contiguous improves perf dramatically
+@generated function _unsafe_getindex!(X::BitArray, ::LinearFast, B::BitArray, I0::Union(Colon,UnitRange{Int}), I::Union(Int,UnitRange{Int},Colon)...)
     N = length(I)
-    Isplat = Expr[:(I[$d]) for d = 1:N]
     quote
         @nexprs $N d->(I_d = I[d])
-        X = BitArray(index_shape(B, I0, $(Isplat...)))
 
         f0 = first(I0)
         l0 = size(X, 1)
@@ -682,42 +671,36 @@ end
         end
 
         storeind = 1
+        Xc, Bc = X.chunks, B.chunks
         @nloops($N, i, d->I_d,
                 d->nothing, # PRE
                 d->(ind += stride_lst_d - gap_lst_d), # POST
                 begin # BODY
-                    copy_chunks!(X.chunks, storeind, B.chunks, ind, l0)
+                    copy_chunks!(Xc, storeind, Bc, ind, l0)
                     storeind += l0
                 end)
         return X
     end
 end
 
-# # TODO? in the general multidimensional non-scalar case, can we do slightly
-# # better by manually hoisting the offset calculations? If this is re-enabled,
-# # dispatch must be altered to prevent scalar indexing from returning an array
-# @generated function unsafe_getindex(B::BitArray, I::Union(Int,AbstractVector{Int},Colon)...)
-#     N = length(I)
-#     Isplat = Expr[:(I[$d]) for d = 1:N]
-#     quote
-#         @nexprs $N d->(I_d = I[d])
-#         shape = @ncall $N index_shape B I
-#         X = BitArray(shape)
-#         Xc = X.chunks
-#
-#         stride_1 = 1
-#         @nexprs $N d->(stride_{d+1} = stride_d * size(B, d))
-#         @nexprs 1 d->(offset_{$N} = 1)
-#         ind = 1
-#         @nloops($N, i, X, d->(@inbounds j_d = unsafe_getindex(I[d], i_d);
-#                               offset_{d-1} = offset_d + (j_d-1)*stride_d), # PRE
-#                 begin
-#                     unsafe_bitsetindex!(Xc, B[offset_0], ind)
-#                     ind += 1
-#                 end)
-#         return X
-#     end
-# end
+# in the general multidimensional non-scalar case, can we do about 10% better
+# in most cases by manually hoisting the bitarray chunks access out of the loop
+# (This should really be handled by the compiler or with an immutable BitArray)
+@generated function _unsafe_getindex!(X::BitArray, ::LinearFast, B::BitArray, I::Union(Int,AbstractVector{Int},Colon)...)
+    N = length(I)
+    quote
+        stride_1 = 1
+        @nexprs $N d->(stride_{d+1} = stride_d*size(B, d))
+        $(symbol(:offset_, N)) = 1
+        ind = 0
+        Xc, Bc = X.chunks, B.chunks
+        @nloops $N i X d->(offset_{d-1} = offset_d + (unsafe_getindex(I[d], i_d)-1)*stride_d) begin
+            ind += 1
+            unsafe_bitsetindex!(Xc, unsafe_bitgetindex(Bc, offset_0), ind)
+        end
+        return X
+    end
+end
 
 ## setindex!
 
