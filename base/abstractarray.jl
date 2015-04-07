@@ -1161,8 +1161,9 @@ sub2ind(dims::Tuple{Integer,}, i1::Integer, I::Integer...) = i1 + sum(I) - lengt
 sub2ind(dims::Tuple{Integer,Integer}, i1::Integer) = i1
 sub2ind(dims::Tuple{Integer,Integer}, i1::Integer, i2::Integer) = i1+dims[1]*(i2-1)
 sub2ind(dims::Tuple{Integer,Integer}, i1::Integer, i2::Integer, I::Integer...) = i1+dims[1]*(i2-1+sum(I)-length(I))
+# inlining is required to prevent allocations for more than 4 dimensions
 sub2ind(dims::Tuple{Integer,Integer,Vararg{Integer}}, i1::Integer, i2::Integer, I::Integer...) =
-    i1 + dims[1]*(sub2ind(tail(dims),i2,I...)-1)
+    (@_inline_meta(); i1 + dims[1]*(sub2ind(tail(dims),i2,I...)-1))
 
 function sub2ind{T<:Integer}(dims::Array{T}, sub::Array{T})
     ndims = length(dims)
