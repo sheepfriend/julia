@@ -332,7 +332,7 @@ function setindex!(A::Array, X::AbstractArray, I::AbstractVector{Int})
     count = 1
     if is(X,A)
         X = copy(X)
-        is(I,A) && (I = X)
+        is(I,A) && (I = X::typeof(I))
     elseif is(I,A)
         I = copy(I)
     end
