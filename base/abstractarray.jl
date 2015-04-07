@@ -500,23 +500,19 @@ end
 # fallback to the safe version if the subtype hasn't defined the required
 # unsafe method.
 
-macro _inline_expr()
-    Expr(:meta, :inline)
-end
-
 function getindex(A::AbstractArray, I...)
-    @_inline_expr
+    @_inline_meta
     _getindex(linearindexing(A), A, I...)
 end
 function unsafe_getindex(A::AbstractArray, I...)
-    @_inline_expr
+    @_inline_meta
     _unsafe_getindex(linearindexing(A), A, I...)
 end
 ## Internal defitions
-_getindex(::LinearFast, A::AbstractArray) = (@_inline_expr; getindex(A, 1))
-_getindex(::LinearSlow, A::AbstractArray) = (@_inline_expr; _getindex(A, 1))
-_unsafe_getindex(::LinearFast, A::AbstractArray) = (@_inline_expr; unsafe_getindex(A, 1))
-_unsafe_getindex(::LinearSlow, A::AbstractArray) = (@_inline_expr; _unsafe_getindex(A, 1))
+_getindex(::LinearFast, A::AbstractArray) = (@_inline_meta; getindex(A, 1))
+_getindex(::LinearSlow, A::AbstractArray) = (@_inline_meta; _getindex(A, 1))
+_unsafe_getindex(::LinearFast, A::AbstractArray) = (@_inline_meta; unsafe_getindex(A, 1))
+_unsafe_getindex(::LinearSlow, A::AbstractArray) = (@_inline_meta; _unsafe_getindex(A, 1))
 _getindex(::LinearIndexing, A::AbstractArray, I...) = error("indexing $(typeof(A)) with types $(typeof(I)) is not supported")
 _unsafe_getindex(::LinearIndexing, A::AbstractArray, I...) = error("indexing $(typeof(A)) with types $(typeof(I)) is not supported")
 
@@ -532,7 +528,7 @@ _getindex(::LinearFast, A::AbstractArray, I::Int) = error("indexing not defined 
         unsafe_getindex(A, sub2ind(size(A), $(Isplat...)))
     end
 end
-_unsafe_getindex(::LinearFast, A::AbstractArray, I::Int) = (@_inline_expr; getindex(A, I))
+_unsafe_getindex(::LinearFast, A::AbstractArray, I::Int) = (@_inline_meta; getindex(A, I))
 @generated function _unsafe_getindex(::LinearFast, A::AbstractArray, I::Real...)
     N = length(I)
     Isplat = Expr[:(to_index(I[$d])) for d = 1:N]
@@ -603,18 +599,18 @@ end
 ## Setindex! is defined similarly. We first dispatch to an internal _setindex!
 # function that allows dispatch on array storage
 function setindex!(A::AbstractArray, v, I...)
-    @_inline_expr
+    @_inline_meta
     _setindex!(linearindexing(A), A, v, I...)
 end
 function unsafe_setindex!(A::AbstractArray, v, I...)
-    @_inline_expr
+    @_inline_meta
     _unsafe_setindex!(linearindexing(A), A, v, I...)
 end
 ## Internal defitions
-_setindex!(::LinearFast, A::AbstractArray, v) = (@_inline_expr; setindex!(A, v, 1))
-_setindex!(::LinearSlow, A::AbstractArray, v) = (@_inline_expr; _setindex!(A, v, 1))
-_unsafe_setindex!(::LinearFast, A::AbstractArray, v) = (@_inline_expr; unsafe_setindex!(A, v, 1))
-_unsafe_setindex!(::LinearSlow, A::AbstractArray, v) = (@_inline_expr; _unsafe_setindex!(A, v, 1))
+_setindex!(::LinearFast, A::AbstractArray, v) = (@_inline_meta; setindex!(A, v, 1))
+_setindex!(::LinearSlow, A::AbstractArray, v) = (@_inline_meta; _setindex!(A, v, 1))
+_unsafe_setindex!(::LinearFast, A::AbstractArray, v) = (@_inline_meta; unsafe_setindex!(A, v, 1))
+_unsafe_setindex!(::LinearSlow, A::AbstractArray, v) = (@_inline_meta; _unsafe_setindex!(A, v, 1))
 _setindex!(::LinearIndexing, A::AbstractArray, v, I...) = error("indexing $(typeof(A)) with types $(typeof(I)) is not supported")
 _unsafe_setindex!(::LinearIndexing, A::AbstractArray, v, I...) = error("indexing $(typeof(A)) with types $(typeof(I)) is not supported")
 
@@ -629,7 +625,7 @@ _setindex!(::LinearFast, A::AbstractArray, v, I::Int) = error("indexed assignmen
         unsafe_setindex!(A, v, sub2ind(size(A), $(Isplat...)))
     end
 end
-_unsafe_setindex!(::LinearFast, A::AbstractArray, v, I::Int) = (@_inline_expr; setindex!(A, v, I))
+_unsafe_setindex!(::LinearFast, A::AbstractArray, v, I::Int) = (@_inline_meta; setindex!(A, v, I))
 @generated function _unsafe_setindex!(::LinearFast, A::AbstractArray, v, I::Real...)
     Isplat = Expr[:(to_index(I[$d])) for d = 1:length(I)]
     quote
