@@ -197,7 +197,7 @@ end
 @generated function _unsafe_getindex(l::LinearIndexing, A::AbstractArray, I::Union(Real, AbstractArray, Colon)...)
     N = length(I)
     quote
-        $(Expr(:meta, :inline))
+        # This is specifically *not* inlined.
         @nexprs $N d->(I_d = to_index(I[d]))
         dest = similar(A, @ncall $N index_shape A I)
         @ncall $N checksize dest I
@@ -228,7 +228,7 @@ end
 
 # Indexing with an array of indices is inherently linear in the source, but
 # might be able to be optimized with fast dividing integers
-function _unsafe_getindex!(dest::AbstractArray, ::LinearIndexing, src::AbstractArray, I::AbstractArray)
+@inline function _unsafe_getindex!(dest::AbstractArray, ::LinearIndexing, src::AbstractArray, I::AbstractArray)
     D = eachindex(dest)
     Ds = start(D)
     for idx in I
@@ -242,6 +242,7 @@ end
 @generated function _unsafe_getindex!(dest::AbstractArray, ::LinearFast, src::AbstractArray, I::Union(Real, AbstractVector, Colon)...)
     N = length(I)
     quote
+        $(Expr(:meta, :inline))
         stride_1 = 1
         @nexprs $N d->(stride_{d+1} = stride_d*size(src, d))
         $(symbol(:offset_, N)) = 1
@@ -259,6 +260,7 @@ end
 @generated function _unsafe_getindex!(dest::AbstractArray, ::LinearSlow, src::AbstractArray, I::Union(Real, AbstractVector, Colon)...)
     N = length(I)
     quote
+        $(Expr(:meta, :inline))
         D = eachindex(dest)
         Ds = start(D)
         @nloops $N i dest d->(j_d = unsafe_getindex(I[d], i_d)) begin
@@ -646,7 +648,7 @@ end
 
 # contiguous multidimensional indexing: if the first dimension is a range,
 # we can get some performance from using copy_chunks!
-function _unsafe_getindex!(X::BitArray, ::LinearFast, B::BitArray, I0::Union(UnitRange{Int}, Colon))
+@inline function _unsafe_getindex!(X::BitArray, ::LinearFast, B::BitArray, I0::Union(UnitRange{Int}, Colon))
     copy_chunks!(X.chunks, 1, B.chunks, first(I0), index_lengths(B, I0)[1])
     return X
 end
@@ -655,6 +657,7 @@ end
 @generated function _unsafe_getindex!(X::BitArray, ::LinearFast, B::BitArray, I0::Union(Colon,UnitRange{Int}), I::Union(Int,UnitRange{Int},Colon)...)
     N = length(I)
     quote
+        $(Expr(:meta, :inline))
         @nexprs $N d->(I_d = I[d])
 
         f0 = first(I0)
@@ -690,6 +693,7 @@ end
 @generated function _unsafe_getindex!(X::BitArray, ::LinearFast, B::BitArray, I::Union(Int,AbstractVector{Int},Colon)...)
     N = length(I)
     quote
+        $(Expr(:meta, :inline))
         stride_1 = 1
         @nexprs $N d->(stride_{d+1} = stride_d*size(B, d))
         $(symbol(:offset_, N)) = 1
