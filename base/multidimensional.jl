@@ -53,56 +53,6 @@ length{I<:CartesianIndex}(::Type{I})=length(super(I))
 # indexing
 getindex(index::CartesianIndex, i::Integer) = getfield(index, i)::Int
 
-@generated function setindex!{T,N}(A::Array{T}, v, index::CartesianIndex{N})
-    :(Base.arrayset(A, convert($T,v), $(cartindex_exprs((index,), (:index,))...)))
-end
-@generated function setindex!{T,N}(A::Array{T}, v, i::Integer, index::CartesianIndex{N})
-    :(Base.arrayset(A, convert($T,v), $(cartindex_exprs((i, index), (:i, :index))...)))
-end
-@generated function setindex!{T,M,N}(A::Array{T}, v, index1::CartesianIndex{M}, i::Integer, index2::CartesianIndex{N})
-    :(Base.arrayset(A, convert($T,v), $(cartindex_exprs((index1, i, index2), (:index1, :i, :index2))...)))
-end
-
-@generated function getindex{N}(A::AbstractArray, index::CartesianIndex{N})
-    :(getindex(A, $(cartindex_exprs((index,), (:index,))...)))
-end
-@generated function getindex{N}(A::AbstractArray, i::Integer, index::CartesianIndex{N})
-    :(getindex(A, $(cartindex_exprs((i, index), (:i, :index))...)))
-end
-@generated function setindex!{T,N}(A::AbstractArray{T}, v, index::CartesianIndex{N})
-    :(setindex!(A, v, $(cartindex_exprs((index,), (:index,))...)))
-end
-@generated function setindex!{T,N}(A::AbstractArray{T}, v, i::Integer, index::CartesianIndex{N})
-    :(setindex!(A, v, $(cartindex_exprs((i, index), (:i, :index))...)))
-end
-for AT in (AbstractVector, AbstractMatrix, AbstractArray)  # nix ambiguity warning
-    @eval begin
-        @generated function getindex{M,N}(A::$AT, index1::CartesianIndex{M}, i::Integer, index2::CartesianIndex{N})
-            :(getindex(A, $(cartindex_exprs((index1, i, index2), (:index1, :i, :index2))...)))
-        end
-        @generated function setindex!{M,N}(A::$AT, v, index1::CartesianIndex{M}, i::Integer, index2::CartesianIndex{N})
-            :(setindex!(A, v, $(cartindex_exprs((index1, i, index2), (:index1, :i, :index2))...)))
-        end
-    end
-end
-
-function cartindex_exprs(indexes, syms)
-    exprs = Any[]
-    for (i,ind) in enumerate(indexes)
-        if ind <: Number
-            push!(exprs, :($(syms[i])))
-        else
-            for j = 1:length(ind)
-                push!(exprs, :($(syms[i])[$j]))
-            end
-        end
-    end
-    if isempty(exprs)
-        push!(exprs, 1)  # Handle the zero-dimensional case
-    end
-    exprs
-end
-
 # arithmetic, min/max
 for op in (:+, :-, :min, :max)
     @eval begin
@@ -400,6 +350,57 @@ end
         A
     end
 end
+
+# Cartesian indexing
+function cartindex_exprs(indexes, syms)
+    exprs = Any[]
+    for (i,ind) in enumerate(indexes)
+        if ind <: CartesianIndex
+            for j = 1:length(ind)
+                push!(exprs, :($syms[$i][$j]))
+            end
+        else
+            push!(exprs, :($syms[$i]))
+        end
+    end
+    if isempty(exprs)
+        push!(exprs, 1)  # Handle the zero-dimensional case
+    end
+    exprs
+end
+@generated function _getindex{T,N}(l::LinearIndexing, A::AbstractArray{T,N}, I::Union(Real,AbstractArray,Colon,CartesianIndex)...)
+    idxs = cartindex_exprs(I, :I)
+    if (l <: LinearSlow && length(idxs) == N) || (l <: LinearFast && length(idxs) == 1)
+        :($(Expr(:meta, :inline)); getindex(A, $(idxs...)))
+    else
+        :($(Expr(:meta, :inline)); _getindex(l, A, $(idxs...)))
+    end
+end
+@generated function _unsafe_getindex{T,N}(l::LinearIndexing, A::AbstractArray{T,N}, I::Union(Real,AbstractArray,Colon,CartesianIndex)...)
+    idxs = cartindex_exprs(I, :I)
+    if (l <: LinearSlow && length(idxs) == N) || (l <: LinearFast && length(idxs) == 1)
+        :($(Expr(:meta, :inline)); unsafe_getindex(A, $(idxs...)))
+    else
+        :($(Expr(:meta, :inline)); _unsafe_getindex(l, A, $(idxs...)))
+    end
+end
+@generated function _setindex!{T,N}(l::LinearIndexing, A::AbstractArray{T,N}, v, I::Union(Real,AbstractArray,Colon,CartesianIndex)...)
+    idxs = cartindex_exprs(I, :I)
+    if (l <: LinearSlow && length(idxs) == N) || (l <: LinearFast && length(idxs) == 1)
+        :($(Expr(:meta, :inline)); setindex!(A, v, $(idxs...)))
+    else
+        :($(Expr(:meta, :inline)); _setindex!(l, A, v, $(idxs...)))
+    end
+end
+@generated function _unsafe_setindex!{T,N}(l::LinearIndexing, A::AbstractArray{T,N}, v, I::Union(Real,AbstractArray,Colon,CartesianIndex)...)
+    idxs = cartindex_exprs(I, :I)
+    if (l <: LinearSlow && length(idxs) == N) || (l <: LinearFast && length(idxs) == 1)
+        :($(Expr(:meta, :inline)); unsafe_setindex!(A, v, $(idxs...)))
+    else
+        :($(Expr(:meta, :inline)); _unsafe_setindex!(l, A, v, $(idxs...)))
+    end
+end
+
 
 ##
 
