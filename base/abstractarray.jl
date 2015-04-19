@@ -116,15 +116,22 @@ linearindexing{T<:Range}(::Type{T}) = LinearFast()
 *(::LinearFast, ::LinearSlow) = LinearSlow()
 *(::LinearSlow, ::LinearSlow) = LinearSlow()
 
+# The real @inline macro is not available this early in the bootstrap, so this
+# internal macro splices the meta Expr directly into the function body.
+macro _inline_meta()
+    Expr(:meta, :inline)
+end
+
 ## Bounds checking ##
 _checkbounds(sz::Int, i::Int) = 1 <= i <= sz
-_checkbounds(sz::Int, i::Real) = _checkbounds(sz, to_index(i))
+_checkbounds(sz::Int, i::Real) = (@_inline_meta; _checkbounds(sz, to_index(i)))
 _checkbounds(sz::Int, I::AbstractVector{Bool}) = length(I) == sz
 _checkbounds(sz::Int, I::AbstractArray{Bool}) = length(I) == sz # setindex! allows this
-_checkbounds(sz::Int, r::Range{Int}) = isempty(r) || (minimum(r) >= 1 && maximum(r) <= sz)
-_checkbounds{T<:Real}(sz::Int, r::Range{T}) = _checkbounds(sz, to_index(r))
+_checkbounds(sz::Int, r::Range{Int}) = (@_inline_meta; isempty(r) || (minimum(r) >= 1 && maximum(r) <= sz))
+_checkbounds{T<:Real}(sz::Int, r::Range{T}) = (@_inline_meta; _checkbounds(sz, to_index(r)))
 _checkbounds(sz::Int, ::Colon) = true
 function _checkbounds{T <: Real}(sz::Int, I::AbstractArray{T})
+    @_inline_meta
     b = true
     for i in I
         b &= _checkbounds(sz, i)
@@ -134,16 +141,19 @@ end
 
 checkbounds(A::AbstractArray, I::AbstractArray{Bool}) = size(A) == size(I) || throw(BoundsError(A, I))
 checkbounds(A::AbstractArray, I::AbstractVector{Bool}) = length(A) == length(I) || throw(BoundsError(A, I))
-checkbounds(A::AbstractArray, I) = _checkbounds(length(A), I) || throw(BoundsError(A, I))
+checkbounds(A::AbstractArray, I) = (@_inline_meta; _checkbounds(length(A), I) || throw(BoundsError(A, I)))
 function checkbounds(A::AbstractMatrix, I::Union(Real,AbstractArray,Colon), J::Union(Real,AbstractArray,Colon))
+    @_inline_meta
     _checkbounds(size(A,1), I) || throw(BoundsError(A, (I, J)))
     _checkbounds(size(A,2), J) || throw(BoundsError(A, (I, J)))
 end
 function checkbounds(A::AbstractArray, I::Union(Real,AbstractArray,Colon), J::Union(Real,AbstractArray,Colon))
+    @_inline_meta
     _checkbounds(size(A,1), I) || throw(BoundsError(A, (I, J)))
     _checkbounds(trailingsize(A,2), J) || throw(BoundsError(A, (I, J)))
 end
 function checkbounds(A::AbstractArray, I::Union(Real,AbstractArray,Colon)...)
+    @_inline_meta
     n = length(I)
     if n > 0
         for dim = 1:(n-1)
@@ -346,11 +356,7 @@ zero{T}(x::AbstractArray{T}) = fill!(similar(x), zero(T))
 
 # While the definitions for LinearFast are all simple enough to inline on their
 # own, LinearSlow's CartesianRange is more complicated and requires explicit
-# inlining. The real @inline macro is not available this early in the bootstrap,
-# so this internal macro splices the meta Expr directly into the function body.
-macro _inline_meta()
-    Expr(:meta, :inline)
-end
+# inlining.
 start(A::AbstractArray) = (@_inline_meta(); itr = eachindex(A); (itr, start(itr)))
 next(A::AbstractArray,i) = (@_inline_meta(); (idx, s) = next(i[1], i[2]); (A[idx], (i[1], s)))
 done(A::AbstractArray,i) = done(i[1], i[2])
