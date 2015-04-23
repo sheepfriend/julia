@@ -340,8 +340,8 @@ end
     length(I.parameters) == LD ? (:(LinearFast())) : (:(LinearSlow()))
 end
 
-getindex(::Colon, ::Colon) = Colon()
-getindex(::Colon, i) = i
+getindex(::Colon, i) = to_index(i)
+unsafe_getindex(v::Colon, i) = to_index(i)
 
 step(::Colon) = 1
 first(::Colon) = 1

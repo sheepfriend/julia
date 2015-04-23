@@ -170,6 +170,3 @@ function index_generate(NP, Itypes, Vsym, Isyms)
 end
 
 unsafe_getindex(v::Real, ind::Real) = v
-unsafe_getindex(v::Range, ind::Real) = first(v) + (to_index(ind)-1)*step(v)
-@inline unsafe_getindex(v::Array, ind::Real) = (@inbounds x = v[to_index(ind)]; x)
-unsafe_getindex(v::Colon, ind::Real) = to_index(ind)

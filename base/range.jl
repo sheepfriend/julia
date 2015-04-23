@@ -342,10 +342,12 @@ done(r::UnitRange, i) = i==oftype(i,r.stop)+1
 
 ## indexing
 
-function getindex{T}(r::Range{T}, i::Integer)
+function getindex(r::Range, i::Integer)
     1 <= i <= length(r) || throw(BoundsError())
-    convert(T, first(r) + (i-1)*step(r))
+    unsafe_getindex(r, i)
 end
+unsafe_getindex{T}(v::Range{T}, i::Integer) = convert(T, first(v) + (i-1)*step(v))
+
 function getindex{T}(r::FloatRange{T}, i::Integer)
     1 <= i <= length(r) || throw(BoundsError())
     convert(T, (r.start + (i-1)*r.step)/r.divisor)
