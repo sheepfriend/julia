@@ -121,6 +121,9 @@ linearindexing{T<:Range}(::Type{T}) = LinearFast()
 macro _inline_meta()
     Expr(:meta, :inline)
 end
+macro _noinline_meta()
+    Expr(:meta, :noinline)
+end
 
 ## Bounds checking ##
 _checkbounds(sz::Int, i::Int) = 1 <= i <= sz
@@ -138,28 +141,28 @@ function _checkbounds{T <: Real}(sz::Int, I::AbstractArray{T})
     end
     b
 end
+# Prevent allocation of a GC frame by hiding the BoundsError in a noinline function
+_boundserror(A, I) = (@_noinline_meta; throw(BoundsError(A, I)))
 
-checkbounds(A::AbstractArray, I::AbstractArray{Bool}) = size(A) == size(I) || throw(BoundsError(A, I))
-checkbounds(A::AbstractArray, I::AbstractVector{Bool}) = length(A) == length(I) || throw(BoundsError(A, I))
-checkbounds(A::AbstractArray, I) = (@_inline_meta; _checkbounds(length(A), I) || throw(BoundsError(A, I)))
+checkbounds(A::AbstractArray, I::AbstractArray{Bool}) = size(A) == size(I) || _boundserror(A, I)
+checkbounds(A::AbstractArray, I::AbstractVector{Bool}) = length(A) == length(I) || _boundserror(A, I)
+checkbounds(A::AbstractArray, I) = (@_inline_meta; _checkbounds(length(A), I) || _boundserror(A, I))
 function checkbounds(A::AbstractMatrix, I::Union(Real,AbstractArray,Colon), J::Union(Real,AbstractArray,Colon))
     @_inline_meta
-    _checkbounds(size(A,1), I) || throw(BoundsError(A, (I, J)))
-    _checkbounds(size(A,2), J) || throw(BoundsError(A, (I, J)))
+    (_checkbounds(size(A,1), I) && _checkbounds(size(A,2), J)) || _boundserror(A, (I, J))
 end
 function checkbounds(A::AbstractArray, I::Union(Real,AbstractArray,Colon), J::Union(Real,AbstractArray,Colon))
     @_inline_meta
-    _checkbounds(size(A,1), I) || throw(BoundsError(A, (I, J)))
-    _checkbounds(trailingsize(A,2), J) || throw(BoundsError(A, (I, J)))
+    (_checkbounds(size(A,1), I) && _checkbounds(trailingsize(A,2), J)) || _boundserror(A, (I, J))
 end
 function checkbounds(A::AbstractArray, I::Union(Real,AbstractArray,Colon)...)
     @_inline_meta
     n = length(I)
     if n > 0
         for dim = 1:(n-1)
-            _checkbounds(size(A,dim), I[dim]) || throw(BoundsError(A, I))
+            _checkbounds(size(A,dim), I[dim]) || _boundserror(A, I)
         end
-        _checkbounds(trailingsize(A,n), I[n]) || throw(BoundsError(A, I))
+        _checkbounds(trailingsize(A,n), I[n]) || _boundserror(A, I)
     end
 end
 
