@@ -216,11 +216,11 @@ function _unsafe_getindex(::LinearIndexing, src::AbstractArray, I::AbstractArray
     D = eachindex(dest)
     Ds = start(D)
     s = 0
-    for b in I
+    for b in eachindex(I)
         s+=1
-        if b
+        if unsafe_getindex(I, b)
             d, Ds = next(D, Ds)
-            unsafe_setindex!(dest, src[s], d)
+            unsafe_setindex!(dest, unsafe_getindex(src, s), d)
         end
     end
     dest
@@ -310,9 +310,9 @@ function _unsafe_setindex!(::LinearIndexing, A::AbstractArray, x, I::AbstractArr
     setindex_shape_check(X, index_lengths(A, I)[1])
     Xs = start(X)
     i = 0
-    for b in I
+    for b in eachindex(I)
         i+=1
-        if b
+        if unsafe_getindex(I, b)
             (v, Xs) = next(X, Xs)
             unsafe_setindex!(A, v, i)
         end
