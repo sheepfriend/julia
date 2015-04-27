@@ -527,24 +527,16 @@ _unsafe_getindex(::LinearIndexing, A::AbstractArray, I...) = error("indexing $(t
 
 ## LinearFast Scalar indexing
 _getindex(::LinearFast, A::AbstractArray, I::Int) = error("indexing not defined for ", typeof(A))
-@generated function _getindex(::LinearFast, A::AbstractArray, I::Real...)
-    N = length(I)
-    Isplat = Expr[:(to_index(I[$d])) for d = 1:N]
-    quote
-        $(Expr(:meta, :inline))
-        # We must check bounds for sub2ind; so we can then call unsafe_getindex
-        checkbounds(A, I...)
-        unsafe_getindex(A, sub2ind(size(A), $(Isplat...)))
-    end
+function _getindex(::LinearFast, A::AbstractArray, I::Real...)
+    @_inline_meta
+    # We must check bounds for sub2ind; so we can then call unsafe_getindex
+    checkbounds(A, I...)
+    unsafe_getindex(A, sub2ind(size(A), to_index(I)...))
 end
 _unsafe_getindex(::LinearFast, A::AbstractArray, I::Int) = (@_inline_meta; getindex(A, I))
-@generated function _unsafe_getindex(::LinearFast, A::AbstractArray, I::Real...)
-    N = length(I)
-    Isplat = Expr[:(to_index(I[$d])) for d = 1:N]
-    quote
-        $(Expr(:meta, :inline))
-        unsafe_getindex(A, sub2ind(size(A), $(Isplat...)))
-    end
+function _unsafe_getindex(::LinearFast, A::AbstractArray, I::Real...)
+    @_inline_meta
+    unsafe_getindex(A, sub2ind(size(A), to_index(I)...))
 end
 
 # LinearSlow Scalar indexing
@@ -625,22 +617,16 @@ _unsafe_setindex!(::LinearIndexing, A::AbstractArray, v, I...) = error("indexing
 
 ## LinearFast Scalar indexing
 _setindex!(::LinearFast, A::AbstractArray, v, I::Int) = error("indexed assignment not defined for ", typeof(A))
-@generated function _setindex!(::LinearFast, A::AbstractArray, v, I::Real...)
-    Isplat = Expr[:(to_index(I[$d])) for d = 1:length(I)]
-    quote
-        $(Expr(:meta, :inline))
-        # We must check bounds for sub2ind; so we can then call unsafe_setindex!
-        checkbounds(A, I...)
-        unsafe_setindex!(A, v, sub2ind(size(A), $(Isplat...)))
-    end
+function _setindex!(::LinearFast, A::AbstractArray, v, I::Real...)
+    @_inline_meta
+    # We must check bounds for sub2ind; so we can then call unsafe_setindex!
+    checkbounds(A, I...)
+    unsafe_setindex!(A, v, sub2ind(size(A), to_index(I)...))
 end
 _unsafe_setindex!(::LinearFast, A::AbstractArray, v, I::Int) = (@_inline_meta; setindex!(A, v, I))
-@generated function _unsafe_setindex!(::LinearFast, A::AbstractArray, v, I::Real...)
-    Isplat = Expr[:(to_index(I[$d])) for d = 1:length(I)]
-    quote
-        $(Expr(:meta, :inline))
-        unsafe_setindex!(A, v, sub2ind(size(A), $(Isplat...)))
-    end
+function _unsafe_setindex!(::LinearFast, A::AbstractArray, v, I::Real...)
+    @_inline_meta
+    unsafe_setindex!(A, v, sub2ind(size(A), to_index(I)...))
 end
 
 # LinearSlow Scalar indexing
