@@ -371,36 +371,16 @@ function cartindex_exprs(indexes, syms)
     exprs
 end
 @generated function _getindex{T,N}(l::LinearIndexing, A::AbstractArray{T,N}, I::Union(Real,AbstractArray,Colon,CartesianIndex)...)
-    idxs = cartindex_exprs(I, :I)
-    if (l <: LinearSlow && length(idxs) == N) || (l <: LinearFast && length(idxs) == 1)
-        :($(Expr(:meta, :inline)); getindex(A, $(idxs...)))
-    else
-        :($(Expr(:meta, :inline)); _getindex(l, A, $(idxs...)))
-    end
+    :($(Expr(:meta, :inline)); getindex(A, $(cartindex_exprs(I, :I)...)))
 end
 @generated function _unsafe_getindex{T,N}(l::LinearIndexing, A::AbstractArray{T,N}, I::Union(Real,AbstractArray,Colon,CartesianIndex)...)
-    idxs = cartindex_exprs(I, :I)
-    if (l <: LinearSlow && length(idxs) == N) || (l <: LinearFast && length(idxs) == 1)
-        :($(Expr(:meta, :inline)); unsafe_getindex(A, $(idxs...)))
-    else
-        :($(Expr(:meta, :inline)); _unsafe_getindex(l, A, $(idxs...)))
-    end
+    :($(Expr(:meta, :inline)); unsafe_getindex(A, $(cartindex_exprs(I, :I)...)))
 end
 @generated function _setindex!{T,N}(l::LinearIndexing, A::AbstractArray{T,N}, v, I::Union(Real,AbstractArray,Colon,CartesianIndex)...)
-    idxs = cartindex_exprs(I, :I)
-    if (l <: LinearSlow && length(idxs) == N) || (l <: LinearFast && length(idxs) == 1)
-        :($(Expr(:meta, :inline)); setindex!(A, v, $(idxs...)))
-    else
-        :($(Expr(:meta, :inline)); _setindex!(l, A, v, $(idxs...)))
-    end
+    :($(Expr(:meta, :inline)); setindex!(A, v, $(cartindex_exprs(I, :I)...)))
 end
 @generated function _unsafe_setindex!{T,N}(l::LinearIndexing, A::AbstractArray{T,N}, v, I::Union(Real,AbstractArray,Colon,CartesianIndex)...)
-    idxs = cartindex_exprs(I, :I)
-    if (l <: LinearSlow && length(idxs) == N) || (l <: LinearFast && length(idxs) == 1)
-        :($(Expr(:meta, :inline)); unsafe_setindex!(A, v, $(idxs...)))
-    else
-        :($(Expr(:meta, :inline)); _unsafe_setindex!(l, A, v, $(idxs...)))
-    end
+    :($(Expr(:meta, :inline)); unsafe_setindex!(A, v, $(cartindex_exprs(I, :I)...)))
 end
 
 
