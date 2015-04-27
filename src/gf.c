@@ -509,7 +509,7 @@ static jl_function_t *cache_method(jl_methtable_t *mt, jl_tupletype_t *type,
         jl_value_t *elt = jl_tparam(type,i);
         jl_value_t *decl_i = jl_nth_slot_type(decl,i);
         if (jl_is_type_type(elt) && jl_is_tuple_type(jl_tparam0(elt)) &&
-            !jl_is_type_type(decl_i)) {
+            !(jl_subtype(decl_i, (jl_value_t*)jl_type_type, 0) && !is_kind(decl_i))) {
             jl_methlist_t *curr = mt->defs;
             int ok=1;
             while (curr != (void*)jl_nothing) {
@@ -1404,18 +1404,34 @@ void NORETURN jl_no_method_error(jl_function_t *f, jl_value_t **args, size_t na)
 
 static jl_tupletype_t *arg_type_tuple(jl_value_t **args, size_t nargs)
 {
-    jl_value_t **types;
-    JL_GC_PUSHARGS(types, nargs);
+    jl_tupletype_t *tt;
     size_t i;
-    for(i=0; i < nargs; i++) {
-        jl_value_t *ai = args[i];
-        if (jl_is_type(ai))
-            types[i] = (jl_value_t*)jl_wrap_Type(ai);
-        else
-            types[i] = jl_typeof(ai);
+    if (nargs < jl_page_size/sizeof(jl_value_t*)) {
+        jl_value_t **types;
+        JL_GC_PUSHARGS(types, nargs);
+        for(i=0; i < nargs; i++) {
+            jl_value_t *ai = args[i];
+            if (jl_is_type(ai))
+                types[i] = (jl_value_t*)jl_wrap_Type(ai);
+            else
+                types[i] = jl_typeof(ai);
+        }
+        tt = (jl_tupletype_t*)jl_inst_concrete_tupletype_v(types, nargs);
+        JL_GC_POP();
     }
-    jl_tupletype_t *tt = (jl_tupletype_t*)jl_inst_concrete_tupletype(types, nargs);
-    JL_GC_POP();
+    else {
+        jl_svec_t *types = jl_alloc_svec(nargs);
+        JL_GC_PUSH1(&types);
+        for(i=0; i < nargs; i++) {
+            jl_value_t *ai = args[i];
+            if (jl_is_type(ai))
+                jl_svecset(types, i, (jl_value_t*)jl_wrap_Type(ai));
+            else
+                jl_svecset(types, i, jl_typeof(ai));
+        }
+        tt = (jl_tupletype_t*)jl_inst_concrete_tupletype(types);
+        JL_GC_POP();
+    }
     return tt;
 }
 

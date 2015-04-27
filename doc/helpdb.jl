@@ -90,7 +90,7 @@ Any[
    linear indexing behaviors should define \"linearindexing\" in the
    type-domain:
 
-   Base.linearindexing{T<:MyArray}(::Type{T}) = Base.LinearFast()
+      Base.linearindexing{T<:MyArray}(::Type{T}) = Base.LinearFast()
 
 "),
 
@@ -1368,11 +1368,20 @@ Any[
 
 "),
 
+("Base","which","which(symbol)
+
+   Return the module in which the binding for the variable referenced
+   by \"symbol\" was created.
+
+"),
+
 ("Base","@which","@which()
 
-   Evaluates the arguments to the specified function call, and returns
-   the \"Method\" object for the method that would be called for those
-   arguments.
+   Applied to a function call, it evaluates the arguments to the
+   specified function call, and returns the \"Method\" object for the
+   method that would be called for those arguments.  Applied to a
+   variable, it returns the module in which the variable was bound. It
+   calls out to the \"which\" function.
 
 "),
 
@@ -5172,10 +5181,15 @@ Millisecond(v)
 
 "),
 
-("Base","cp","cp(src::AbstractString, dst::AbstractString; recursive=false)
+("Base","cp","cp(src::AbstractString, dst::AbstractString; remove_destination::Bool=false, follow_symlinks::Bool=false)
 
-   Copy a file from *src* to *dest*. Passing \"recursive=true\" will
-   enable recursive copying of directories.
+   Copy the file, link, or directory from *src* to *dest*.
+   \"remove_destination=true\" will first remove an existing *dst*.
+
+   If *follow_symlinks=false*, and src is a symbolic link, dst will be
+   created as a symbolic link. If *follow_symlinks=true* and src is a
+   symbolic link, dst will be a copy of the file or directory *src*
+   refers to.
 
 "),
 
