@@ -307,16 +307,19 @@ end
 # 1-d logical indexing: override the above to avoid calling find (in to_index)
 function _unsafe_setindex!(::LinearIndexing, A::AbstractArray, x, I::AbstractArray{Bool})
     X = _iterable(x)
-    setindex_shape_check(X, index_lengths(A, I)[1])
     Xs = start(X)
     i = 0
+    c = 0
     for b in eachindex(I)
         i+=1
         if unsafe_getindex(I, b)
+            done(X, Xs) && throw_setindex_mismatch(x, I)
             (v, Xs) = next(X, Xs)
             unsafe_setindex!(A, v, i)
+            c += 1
         end
     end
+    setindex_shape_check(X, c)
     A
 end
 
