@@ -142,27 +142,27 @@ function _checkbounds{T <: Real}(sz::Int, I::AbstractArray{T})
     b
 end
 # Prevent allocation of a GC frame by hiding the BoundsError in a noinline function
-_boundserror(A, I) = (@_noinline_meta; throw(BoundsError(A, I)))
+throw_boundserror(A, I) = (@_noinline_meta; throw(BoundsError(A, I)))
 
-checkbounds(A::AbstractArray, I::AbstractArray{Bool}) = size(A) == size(I) || _boundserror(A, I)
-checkbounds(A::AbstractArray, I::AbstractVector{Bool}) = length(A) == length(I) || _boundserror(A, I)
-checkbounds(A::AbstractArray, I) = (@_inline_meta; _checkbounds(length(A), I) || _boundserror(A, I))
+checkbounds(A::AbstractArray, I::AbstractArray{Bool}) = size(A) == size(I) || throw_boundserror(A, I)
+checkbounds(A::AbstractArray, I::AbstractVector{Bool}) = length(A) == length(I) || throw_boundserror(A, I)
+checkbounds(A::AbstractArray, I) = (@_inline_meta; _checkbounds(length(A), I) || throw_boundserror(A, I))
 function checkbounds(A::AbstractMatrix, I::Union(Real,AbstractArray,Colon), J::Union(Real,AbstractArray,Colon))
     @_inline_meta
-    (_checkbounds(size(A,1), I) && _checkbounds(size(A,2), J)) || _boundserror(A, (I, J))
+    (_checkbounds(size(A,1), I) && _checkbounds(size(A,2), J)) || throw_boundserror(A, (I, J))
 end
 function checkbounds(A::AbstractArray, I::Union(Real,AbstractArray,Colon), J::Union(Real,AbstractArray,Colon))
     @_inline_meta
-    (_checkbounds(size(A,1), I) && _checkbounds(trailingsize(A,2), J)) || _boundserror(A, (I, J))
+    (_checkbounds(size(A,1), I) && _checkbounds(trailingsize(A,2), J)) || throw_boundserror(A, (I, J))
 end
 function checkbounds(A::AbstractArray, I::Union(Real,AbstractArray,Colon)...)
     @_inline_meta
     n = length(I)
     if n > 0
         for dim = 1:(n-1)
-            _checkbounds(size(A,dim), I[dim]) || _boundserror(A, I)
+            _checkbounds(size(A,dim), I[dim]) || throw_boundserror(A, I)
         end
-        _checkbounds(trailingsize(A,n), I[n]) || _boundserror(A, I)
+        _checkbounds(trailingsize(A,n), I[n]) || throw_boundserror(A, I)
     end
 end
 

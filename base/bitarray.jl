@@ -383,7 +383,7 @@ function unsafe_setindex!(B::BitArray, x, I::BitArray)
     y = convert(Bool, x)
     Bc = B.chunks
     Ic = I.chunks
-    length(Bc) == length(Ic) || _boundserror(B, I)
+    length(Bc) == length(Ic) || throw_boundserror(B, I)
     @inbounds if y
         for i = 1:length(Bc)
             Bc[i] |= Ic[i]
@@ -402,7 +402,7 @@ setindex!(B::BitArray, X::AbstractArray, I::BitArray) = (checkbounds(B, I); unsa
 function unsafe_setindex!(B::BitArray, X::AbstractArray, I::BitArray)
     Bc = B.chunks
     Ic = I.chunks
-    length(Bc) == length(Ic) || _boundserror(B, I)
+    length(Bc) == length(Ic) || throw_boundserror(B, I)
     lc = length(Bc)
     lx = length(X)
     last_chunk_len = Base._mod64(length(B)-1)+1
