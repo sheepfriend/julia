@@ -313,7 +313,7 @@ function _unsafe_setindex!(::LinearIndexing, A::AbstractArray, x, I::AbstractArr
     for b in eachindex(I)
         i+=1
         if unsafe_getindex(I, b)
-            done(X, Xs) && throw_setindex_mismatch(x, I)
+            done(X, Xs) && throw_setindex_mismatch(x, c+1)
             (v, Xs) = next(X, Xs)
             unsafe_setindex!(A, v, i)
             c += 1

@@ -377,12 +377,13 @@ end
 # sure about the behaviour and use unsafe_getindex; in the general case
 # we can't and must use getindex, otherwise silent corruption can happen)
 
-function setindex!(B::BitArray, x, I::BitArray)
-    checkbounds(B, I)
+# When indexing with a BitArray, we can operate whole chunks at a time for a ~100x gain
+setindex!(B::BitArray, x, I::BitArray) = (checkbounds(B, I); unsafe_setindex!(B, x, I))
+function unsafe_setindex!(B::BitArray, x, I::BitArray)
     y = convert(Bool, x)
     Bc = B.chunks
     Ic = I.chunks
-    @assert length(Bc) == length(Ic)
+    length(Bc) == length(Ic) || _boundserror(B, I)
     @inbounds if y
         for i = 1:length(Bc)
             Bc[i] |= Ic[i]
@@ -395,26 +396,15 @@ function setindex!(B::BitArray, x, I::BitArray)
     return B
 end
 
-@generated function setindex!(B::BitArray, x, I::AbstractArray{Bool})
-    idxop = I <: Array{Bool} ? :unsafe_getindex : :getindex
-    quote
-        checkbounds(B, I)
-        y = convert(Bool, x)
-        Bc = B.chunks
-        for i = 1:length(I)
-            # faster I[i] && B[i] = y
-            $idxop(I, i) && unsafe_bitsetindex!(Bc, y, i)
-        end
-        return B
-    end
-end
-
-function setindex!(B::BitArray, X::AbstractArray, I::BitArray)
-    checkbounds(B, I)
+# Assigning an array of bools is more complicated, but we can still do some
+# work on chunks by combining X and I 64 bits at a time to improve perf by ~40%
+setindex!(B::BitArray, X::AbstractArray, I::BitArray) = (checkbounds(B, I); unsafe_setindex!(B, X, I))
+function unsafe_setindex!(B::BitArray, X::AbstractArray, I::BitArray)
     Bc = B.chunks
     Ic = I.chunks
-    @assert length(Bc) == length(Ic)
+    length(Bc) == length(Ic) || _boundserror(B, I)
     lc = length(Bc)
+    lx = length(X)
     last_chunk_len = Base._mod64(length(B)-1)+1
 
     c = 1
@@ -424,7 +414,8 @@ function setindex!(B::BitArray, X::AbstractArray, I::BitArray)
         u = UInt64(1)
         for j = 1:(i < lc ? 64 : last_chunk_len)
             if Imsk & u != 0
-                x = convert(Bool, X[c])
+                lx < c && throw_setindex_mismatch(X, c)
+                x = convert(Bool, unsafe_getindex(X, c))
                 if x
                     C |= u
                 else
@@ -437,29 +428,9 @@ function setindex!(B::BitArray, X::AbstractArray, I::BitArray)
         @inbounds Bc[i] = C
     end
     if length(X) != c-1
-        throw(DimensionMismatch("assigned $(length(X)) elements to length $(c-1) destination"))
+        throw_setindex_mismatch(X, c-1)
     end
     return B
-end
-
-@generated function setindex!(B::BitArray, X::AbstractArray, I::AbstractArray{Bool})
-    idxop = I <: Array{Bool} ? :unsafe_getindex : :getindex
-    quote
-        checkbounds(B, I)
-        Bc = B.chunks
-        c = 1
-        for i = 1:length(I)
-            if $idxop(I, i)
-                # faster B[i] = X[c]
-                unsafe_bitsetindex!(Bc, convert(Bool, X[c]), i)
-                c += 1
-            end
-        end
-        if length(X) != c-1
-            throw(DimensionMismatch("assigned $(length(X)) elements to length $(c-1) destination"))
-        end
-        return B
-    end
 end
 
 ## Dequeue functionality ##
