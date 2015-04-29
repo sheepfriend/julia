@@ -538,3 +538,6 @@ function _unsafe_setindex!(l::LinearIndexing, A::AbstractArray, x, J::Union(Real
     depwarn("multidimensional indexed assignment with multidimensional arrays is deprecated, use vec to convert indices to vectors", :_unsafe_setindex!)
     _unsafe_setindex!(l, A, x, _ensure_vectors(J...)...)
 end
+
+@deprecate BigFloat(s::AbstractString) parse(BigFloat,s)
+@deprecate BigInt(s::AbstractString) parse(BigInt,s)
